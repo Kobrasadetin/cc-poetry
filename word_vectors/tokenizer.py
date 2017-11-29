@@ -8,6 +8,7 @@ import re
 import string
 
 def tokenize(string_to_tokenize):
+    '''this tokenizer returns lowercase words only'''
     w = nltk.word_tokenize(string_to_tokenize)
     sanitized = []
     is_word = re.compile('[%s]' % re.escape(string.punctuation))
