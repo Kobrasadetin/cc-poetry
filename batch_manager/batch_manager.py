@@ -3,11 +3,12 @@ Created on 29.11.2017
 
 @author: mkarjanm
 '''
-import random.shuffle
+import random
 import numpy as np
 import csv
 from word_vectors.vectorizer import Vectorizer
 from word_vectors import tokenizer
+from numba.tests.npyufunc.test_ufunc import dtype
 
 
 def read_csv(filename, column, min_length=10):
@@ -39,13 +40,13 @@ class BatchManager:
             '''vectorizer returns numpy arrays of varying length'''
             self.context_arrays.append(vectorized)
             for i in range(np.shape(vectorized)[0] - self.sequence_length + 1):
-                self.sequences.append(vectorized[i:i+self.sequence_length])
+                self.sequences += [vectorized[i:i+self.sequence_length]]
         '''shuffle sequences'''
         random.shuffle(self.sequences)
                 
     def next_batch(self):
         '''selects the next batch of random sequences'''
-        new_batch = self.sequences[self.sequence_counter : self.sequence_counter + self.batch_size] 
+        new_batch = np.array(self.sequences[self.sequence_counter : self.sequence_counter + self.batch_size]) 
         self.sequence_counter += self.batch_size
         
         '''reshuffle sequences when all have been processed'''
