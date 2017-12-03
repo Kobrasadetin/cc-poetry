@@ -1,3 +1,4 @@
+# -*- coding: utf8 -*-
 '''
 Created on 29.11.2017
 
@@ -6,9 +7,12 @@ Created on 29.11.2017
 import random
 import numpy as np
 import csv
+import logging
 from word_vectors.vectorizer import Vectorizer
 from word_vectors import tokenizer
 from numba.tests.npyufunc.test_ufunc import dtype
+
+log = logging.getLogger("batch_manager")
 
 
 def read_csv(filename, column, min_length=10):
@@ -33,14 +37,24 @@ class BatchManager:
         self.sequence_counter = 0
         
     def read_csv(self, filename, column):
-        contents = read_csv(filename, column)        
+        log.info('opening csv {}'.format(filename))     
+        contents = read_csv(filename, column)   
+        counts_all = 0
+        counts_zero = 0     
         for context in contents:
-            tokenized = tokenizer.tokenize(context)           
+            tokenized = tokenizer.tokenize(context)      
             vectorized = self.vectorizer.vectorize_tokens(tokenized)
             '''vectorizer returns numpy arrays of varying length'''
             self.context_arrays.append(vectorized)
+            zerocount = 0            
             for i in range(np.shape(vectorized)[0] - self.sequence_length + 1):
-                self.sequences += [vectorized[i:i+self.sequence_length]]
+                '''only include samples where the last word is not equal to a zero vector'''
+                if np.any(vectorized[i+self.sequence_length - 1]):
+                    self.sequences += [vectorized[i:i+self.sequence_length]]
+                else:
+                    zerocount+=1    
+            counts_all += 1
+            counts_zero += 1 if zerocount>0 else 0
         '''shuffle sequences'''
         random.shuffle(self.sequences)
                 
@@ -55,6 +69,5 @@ class BatchManager:
             self.sequence_counter = 0
              
         return new_batch
-        
     
     
