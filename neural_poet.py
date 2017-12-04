@@ -63,6 +63,7 @@ feature_length = 9
 test_batch_size = 100
 test_print_size = 20
 random_dict_words = 14
+training_mode = False
 feature_ph = tf.placeholder(dtype=tf.float32, shape=[None, feature_length, 300], name="feature_placeholder")
 wordvec_ph = tf.placeholder(dtype=tf.float32, shape=[None, 300], name="word_vector_placeholder")
 random_word_ph = tf.placeholder(dtype=tf.float32, shape=[None, random_dict_words, 300], name="random_word_placeholder")
@@ -79,16 +80,17 @@ def prob_transform_nn(probability_space, word_vector, reuse=False):
     return prob_transform
 
 negative_samples = vectorizer.all_vectors()
-#print([vectorizer.find_nearest(sample) for sample in negative_samples[50:60]])
-#exit()
+total_words = batch_size * random_dict_words
+word_dictionary = tf.constant(negative_samples, dtype=tf.float32)
+random_words = tf.tile(word_dictionary, [total_words//len(negative_samples)+1, 1])
+
 net_out = rnn_net(feature_ph, batch_size, feature_length - 1, [128, 96, 128])
 test_out = rnn_net(feature_ph, test_batch_size, feature_length - 1, [128, 96, 128], reuse=True)
+dict_out = rnn_net(tf.tile(feature_ph, [len(negative_samples),1,1]), len(negative_samples), feature_length - 1, [128, 96, 128], reuse=True)
 def random_vectors(stddev=0.15):
     return tf.random_normal([batch_size, 300], 0.0, stddev=stddev, dtype=tf.float32)
 prob_random = prob_transform_nn(net_out, random_vectors(), reuse= False)
 
-total_words = batch_size * random_dict_words
-random_words = tf.tile(tf.constant(negative_samples, dtype=tf.float32), [total_words//len(negative_samples)+1, 1])
 
 def random_probs(model, ground_truth):
     '''calculates (max of) 10 random vector probs per batch and returns mean'''
@@ -106,13 +108,13 @@ def random_probs(model, ground_truth):
 
 def loss(model, ground_truth):
     '''return tf.reduce_sum(tf.norm(model - ground_truth[:,feature_length - 1,:], axis=1)) #euclidean distance to gt'''
-    #avg_rand , max_rand, min_rand = random_probs(model, ground_truth)
+    avg_rand , max_rand, min_rand = random_probs(model, ground_truth)
     shuffled_words = tf.random_shuffle(ground_truth[:,feature_length - 1,:])
     prob_rand = prob_transform_nn(model, shuffled_words, reuse = True)   
     prob_gt = prob_transform_nn(model, ground_truth[:,feature_length - 1,:], reuse = True)
     prob_gt_mean = tf.reduce_mean(prob_gt)
     prob_rand_mean = tf.reduce_mean(prob_rand)
-    return prob_rand_mean - prob_gt_mean
+    return prob_rand_mean - prob_gt_mean + avg_rand + max_rand
 
 training = tf.train.AdamOptimizer(6e-5).minimize(loss(net_out, feature_ph))
 
@@ -136,35 +138,49 @@ for i in range(test_batch_size - len(testwords)):
     idx = random.randint(0, 10000)
     testwords.append(vectorizer.tuple_at_index(idx))
 
-print('starting training..')
-while(True):    
-    for j in range(100):
-        current_batch = dataset.next_batch()
-        sess.run(training, feed_dict={feature_ph: current_batch})
-    print(sess.run(loss(net_out, feature_ph), feed_dict={feature_ph: current_batch}))    
-    #print ground truth
-    for i in range(feature_length):
-        print(vectorizer.find_nearest(current_batch[0,i]))  
-         
-    ground_truth__prob = sess.run(prob_transform_nn(test_out, wordvec_ph, reuse= True),
-                    feed_dict={feature_ph: np.tile(current_batch[None, 0, :, :], (test_batch_size,1,1) ),
-                               wordvec_ph: np.tile(current_batch[None, 0, feature_length - 1, :], (test_batch_size,1))})[0]  
-    print(' = {}'.format(ground_truth__prob))
-    col_width = max(len(val[1]) for val in testwords)
-    test_batch = np.array([val[0] for val in testwords])        
-    prob = sess.run(prob_transform_nn(test_out, wordvec_ph, reuse= True),
-                    feed_dict={feature_ph: np.tile(current_batch[None, 0, :, :], (test_batch_size,1,1) ),
-                               wordvec_ph: test_batch})    
-    sorted_words = []
-    for i in range(len(testwords)):
-        sorted_words.append((testwords[i][1], prob[i]))
-    sorted_words.sort(key=lambda tup: tup[1], reverse = True)
-    
-    for i in range(test_print_size):
-        print('{0:>{1}}: {2}'.format(sorted_words[i][0], col_width, sorted_words[i][1]))
-    print('---')
-    iterationcount+=1
-    if iterationcount % 10 == 9:        
-        print('saving {}...'.format(model_name), end='')
-        saver.save(sess, 'models/'+model_name)
-        print('...done.')
+if (training_mode):
+    print('starting training..')
+    while(True):    
+        for j in range(100):
+            current_batch = dataset.next_batch()
+            sess.run(training, feed_dict={feature_ph: current_batch})
+        print(sess.run(loss(net_out, feature_ph), feed_dict={feature_ph: current_batch}))    
+        #print ground truth
+        for i in range(feature_length):
+            print(vectorizer.find_nearest(current_batch[0,i]))  
+             
+        ground_truth__prob = sess.run(prob_transform_nn(test_out, wordvec_ph, reuse= True),
+                        feed_dict={feature_ph: np.tile(current_batch[None, 0, :, :], (test_batch_size,1,1) ),
+                                   wordvec_ph: np.tile(current_batch[None, 0, feature_length - 1, :], (test_batch_size,1))})[0]  
+        print(' = {}'.format(ground_truth__prob))
+        col_width = max(len(val[1]) for val in testwords)
+        test_batch = np.array([val[0] for val in testwords])        
+        prob = sess.run(prob_transform_nn(test_out, wordvec_ph, reuse= True),
+                        feed_dict={feature_ph: np.tile(current_batch[None, 0, :, :], (test_batch_size,1,1) ),
+                                   wordvec_ph: test_batch})    
+        sorted_words = []
+        for i in range(len(testwords)):
+            sorted_words.append((testwords[i][1], prob[i]))
+        sorted_words.sort(key=lambda tup: tup[1], reverse = True)
+        
+        for i in range(test_print_size):
+            print('{0:>{1}}: {2}'.format(sorted_words[i][0], col_width, sorted_words[i][1]))
+        print('---')
+        iterationcount+=1
+        if iterationcount % 10 == 9:        
+            print('saving {}...'.format(model_name), end='')
+            saver.save(sess, 'models/'+model_name)
+            print('...done.')
+            
+print('starting stext generation...')
+text_history = np.zeros((feature_length, 300))
+words = [elem for elem in vectorizer.all_tuples()]
+while(True):
+    word_probs = sess.run(prob_transform_nn(dict_out, word_dictionary, reuse=True), feed_dict={feature_ph: [text_history]})[:,0]
+    word_probs = word_probs**1.5
+    word_probs = word_probs/np.sum(word_probs)
+    next_word_idx = np.random.choice(range(len(words)), p=word_probs)
+    next_word_vec, next_word = words[next_word_idx]
+    print(next_word)
+    text_history[:feature_length - 1] = text_history[1:feature_length]
+    text_history[feature_length - 1] = next_word_vec

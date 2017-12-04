@@ -37,9 +37,19 @@ class Vectorizer:
             vec_array[i] = vec
         return vec_array
       
+    def contains_token(self, token):
+        '''returns true if token has a vector representation'''
+        if token in self.npdict_w2v:
+            return True
+        return False
+      
     def all_vectors(self):
         '''returns word vectors in a numpy array'''
         return self.vectors
+      
+    def all_tuples(self):
+        '''returns word vectors in a list of tuples (vector, string)'''
+        return self.dict_tuples
     
     def tuple_at_index(self, idx):
         '''returns word vectors in a numpy array'''
