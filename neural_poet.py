@@ -1,3 +1,4 @@
+# -*- coding: utf8 -*-
 '''
 Created on 27.11.2017
 Authors: Mikko Karjanmaa, -- your name here! ---
@@ -64,6 +65,17 @@ test_batch_size = 100
 test_print_size = 20
 random_dict_words = 14
 training_mode = False
+dataset = BatchManager(batch_size= batch_size, sequence_length= feature_length, vectorizer_instance= vectorizer)
+dataset.read_csv(os.path.join('dataset','RedditPoetry.csv'), column=9)
+
+missing_tokens = []
+for token in dataset.all_word_tokens():
+    if not (vectorizer.contains_token(token)):
+        missing_tokens.append(token)
+print ('batch unique tokens: {}'.format(len(dataset.all_word_tokens())))
+print ('missing:             {}'.format(len(missing_tokens)))
+print (missing_tokens)
+
 feature_ph = tf.placeholder(dtype=tf.float32, shape=[None, feature_length, 300], name="feature_placeholder")
 wordvec_ph = tf.placeholder(dtype=tf.float32, shape=[None, 300], name="word_vector_placeholder")
 random_word_ph = tf.placeholder(dtype=tf.float32, shape=[None, random_dict_words, 300], name="random_word_placeholder")
@@ -123,9 +135,6 @@ saver = tf.train.Saver()
 sess = tf.Session()
 sess.run(tf.global_variables_initializer())
 saver.restore(sess, 'models/'+model_name)
-
-dataset = BatchManager(batch_size = batch_size, sequence_length = feature_length)
-dataset.read_csv(os.path.join('dataset','RedditPoetry.csv'), column=9)
 
 iterationcount = 0
 

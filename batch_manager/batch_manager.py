@@ -28,22 +28,25 @@ def read_csv(filename, column, min_length=10):
 
 class BatchManager:
   
-    def __init__(self, batch_size=128, sequence_length=10):
-        self.vectorizer = Vectorizer()
+    def __init__(self, batch_size=128, sequence_length=10, vectorizer_instance=Vectorizer()):
+        self.vectorizer = vectorizer_instance
         self.context_arrays=[]
         self.sequences=[]
         self.batch_size = batch_size
         self.sequence_length = sequence_length
         self.sequence_counter = 0
+        self.all_tokens = set()
         
-    def read_csv(self, filename, column):
+    def read_csv(self, filename, column):      
         log.info('opening csv {}'.format(filename))     
         contents = read_csv(filename, column)   
         counts_all = 0
         counts_zero = 0     
-        for context in contents:
-            tokenized = tokenizer.tokenize(context)      
-            vectorized = self.vectorizer.vectorize_tokens(tokenized)
+        for context in contents:         
+            tokenized = tokenizer.tokenize(context)
+            for token in tokenized:
+                self.all_tokens.add(token)
+            vectorized = self.vectorizer.vectorize_tokens(tokenized)            
             '''vectorizer returns numpy arrays of varying length'''
             self.context_arrays.append(vectorized)
             zerocount = 0            
@@ -57,9 +60,13 @@ class BatchManager:
             counts_zero += 1 if zerocount>0 else 0
         '''shuffle sequences'''
         random.shuffle(self.sequences)
+    
+    def all_word_tokens(self):
+        '''returns a set of all the tokens in the managed batches'''
+        return self.all_tokens
                 
     def next_batch(self):
-        '''selects the next batch of random sequences'''
+        '''returns the next batch of random sequences'''
         new_batch = np.array(self.sequences[self.sequence_counter : self.sequence_counter + self.batch_size]) 
         self.sequence_counter += self.batch_size
         
