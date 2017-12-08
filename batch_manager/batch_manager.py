@@ -45,23 +45,24 @@ class BatchManager:
         counts_zero = 0     
         for context in contents:         
             tokenized = tokenizer.tokenize(context)
-            for token in tokenized:
-                self.all_tokens.add(token)
-            vectorized = self.vectorizer.vectorize_tokens(tokenized)            
-            '''vectorizer returns numpy arrays of varying length'''
-            self.context_arrays.append(vectorized)
-            zerocount = 0            
-            for i in range(np.shape(vectorized)[0] - self.sequence_length + 1):
-                '''only include samples where the last word is not equal to a zero vector'''
-                if np.any(vectorized[i+self.sequence_length - 1]):
-                    self.sequences += [vectorized[i:i+self.sequence_length]]
-                    counts_all += 1
-                else:
-                    zerocount+=1    
-            counts_zero += 1 if zerocount>0 else 0
-            counter += 1
-            if (counter % 1000 == 0): print('{:06d}/{:06d},\t {} training vectors'.format(counter, len(contents), counts_all), end='\r')
-            if (limit_count>0 and counter >limit_count): break
+            if tokenized != None:
+                for token in tokenized:
+                    self.all_tokens.add(token)
+                vectorized = self.vectorizer.vectorize_tokens(tokenized)            
+                '''vectorizer returns numpy arrays of varying length'''
+                self.context_arrays.append(vectorized)
+                zerocount = 0            
+                for i in range(np.shape(vectorized)[0] - self.sequence_length + 1):
+                    '''only include samples where the last word is not equal to a zero vector'''
+                    if np.any(vectorized[i+self.sequence_length - 1]):
+                        self.sequences += [vectorized[i:i+self.sequence_length]]
+                        counts_all += 1
+                    else:
+                        zerocount+=1    
+                counts_zero += 1 if zerocount>0 else 0
+                counter += 1
+                if (counter % 1000 == 0): print('{:06d}/{:06d},\t {} training vectors'.format(counter, len(contents), counts_all), end='\r')
+                if (limit_count>0 and counter >limit_count): break
         '''shuffle sequences'''  
         print("done.")      
         random.shuffle(self.sequences)               

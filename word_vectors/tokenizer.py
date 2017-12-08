@@ -11,7 +11,7 @@ import string
 substitutes = [('―','-'),('٭',''),('ﬁ','fi'),('`', "'"),('“', '"'),('”','"'),('‘',"'")]
 newline_symbol = ' <newline> '
 internet_address_symbol = '<website>'
-removed_punctuation = "*^{|}~"
+remove_if_found_punctuation = re.escape("*^{|}~¡ãã¨î¾µï\¬¹±+§äöå")
 # removed_punctuation = "#$%&()*+-:;<=>@[\]^_{|}~"
 # allowed_punctuation = "!\".,?'/"
 pattern_subs = [("'m", " am"),("can't", "can not"),("won't", "will not"),("n't", " not"),("'ll", " will"), ("'d"," would"), ("'ll", " will"), ("'ve", " have"), ("'s", " is"), ("'re", " are") ]
@@ -20,6 +20,7 @@ pattern_subs = [("'m", " am"),("can't", "can not"),("won't", "will not"),("n't",
 def tokenize(string_to_tokenize, patterns=False):
     '''this tokenizer returns lowercase words
     currently we don't remove most of the punctuation
+    BUT we rturn None if there's any unallowed chartacters
     '''
     string_to_tokenize = string_to_tokenize.replace('\n', newline_symbol)
     for val1, val2 in substitutes:
@@ -29,14 +30,15 @@ def tokenize(string_to_tokenize, patterns=False):
             string_to_tokenize = string_to_tokenize.replace(val1, val2)
     w = nltk.word_tokenize(string_to_tokenize)
     sanitized = []
-    unwanted = re.compile('[%s]' % removed_punctuation)
+    unwanted = re.compile('[%s]' % remove_if_found_punctuation)
     
-    for token in w: 
-        new_token = unwanted.sub(u'', token)
+    for token in w:
+        if unwanted.search(token) != None:
+            return None
         for val1, val2 in substitutes:
-            new_token = new_token.replace(val1, val2)
-        if new_token[0:2] == '//':
-            new_token = internet_address_symbol
-        if not new_token == u'':
-            sanitized.append(new_token.lower())   
+            token = token.replace(val1, val2)
+        if token[0:2] == '//':
+            token = internet_address_symbol
+        if not token == u'':
+            sanitized.append(token.lower())   
     return sanitized
