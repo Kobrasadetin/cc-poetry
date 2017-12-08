@@ -103,3 +103,8 @@ ENV/
 # Eclipse
 .project
 .pydevproject
+
+# =============================== ignores specific to this project: =================================
+
+#Dataset (Download lyrics dataset separately)
+dataset/lyrics.csv

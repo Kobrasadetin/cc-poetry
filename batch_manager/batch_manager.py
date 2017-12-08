@@ -37,9 +37,10 @@ class BatchManager:
         self.sequence_counter = 0
         self.all_tokens = set()
         
-    def read_csv(self, filename, column):      
+    def read_csv(self, filename, column, limit_count = 8000):      
         log.info('opening csv {}'.format(filename))     
-        contents = read_csv(filename, column)   
+        contents = read_csv(filename, column)
+        counter = 0   
         counts_all = 0
         counts_zero = 0     
         for context in contents:         
@@ -54,16 +55,20 @@ class BatchManager:
                 '''only include samples where the last word is not equal to a zero vector'''
                 if np.any(vectorized[i+self.sequence_length - 1]):
                     self.sequences += [vectorized[i:i+self.sequence_length]]
+                    counts_all += 1
                 else:
                     zerocount+=1    
-            counts_all += 1
             counts_zero += 1 if zerocount>0 else 0
-        '''shuffle sequences'''
-        random.shuffle(self.sequences)
+            counter += 1
+            if (counter % 1000 == 0): print('{:06d}/{:06d},\t {} training vectors'.format(counter, len(contents), counts_all), end='\r')
+            if (limit_count>0 and counter >limit_count): break
+        '''shuffle sequences'''  
+        print("done.")      
+        random.shuffle(self.sequences)               
     
     def all_word_tokens(self):
         '''returns a set of all the tokens in the managed batches'''
-        return self.all_tokens
+        return self.all_tokens      
                 
     def next_batch(self):
         '''returns the next batch of random sequences'''

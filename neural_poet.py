@@ -64,9 +64,10 @@ feature_length = 9
 test_batch_size = 100
 test_print_size = 20
 random_dict_words = 14
-training_mode = False
+training_mode = True
 dataset = BatchManager(batch_size= batch_size, sequence_length= feature_length, vectorizer_instance= vectorizer)
-dataset.read_csv(os.path.join('dataset','RedditPoetry.csv'), column=9)
+#dataset.read_csv(os.path.join('dataset','RedditPoetry.csv'), column=9)
+dataset.read_csv(os.path.join('dataset','lyrics.csv'), column=5)
 
 missing_tokens = []
 for token in dataset.all_word_tokens():
@@ -75,11 +76,14 @@ for token in dataset.all_word_tokens():
 print ('batch unique tokens: {}'.format(len(dataset.all_word_tokens())))
 print ('missing:             {}'.format(len(missing_tokens)))
 print (missing_tokens)
+exit()
 
 feature_ph = tf.placeholder(dtype=tf.float32, shape=[None, feature_length, 300], name="feature_placeholder")
 wordvec_ph = tf.placeholder(dtype=tf.float32, shape=[None, 300], name="word_vector_placeholder")
 random_word_ph = tf.placeholder(dtype=tf.float32, shape=[None, random_dict_words, 300], name="random_word_placeholder")
 dummy = np.random.uniform(low=0.0, high=1.0, size=[2, feature_length, 300])
+
+
 
 '''
 We are going to interpret the rnn output as a description of a probability space, and we are going to use
