@@ -58,7 +58,7 @@ def rnn_net(features, batch_size, seq_length, layer_widths, reuse=False):
     return net_output
 
 vectorizer = Vectorizer()
-model_name='model3'
+model_name='model4'
 batch_size = 4096
 feature_length = 9
 test_batch_size = 100
@@ -67,18 +67,33 @@ random_dict_words = 14
 training_mode = True
 dataset = BatchManager(batch_size= batch_size, sequence_length= feature_length, vectorizer_instance= vectorizer)
 #dataset.read_csv(os.path.join('dataset','RedditPoetry.csv'), column=9)
-dataset.read_csv(os.path.join('dataset','lyrics.csv'), column=5)
+dataset.read_csv(os.path.join('dataset','lyrics.csv'), column=5, limits=slice(1000,6100))
 
-missing_tokens = []
+
+'''
+assign trainable vectors to missing tokens
+'''
+missing_tokens = [None]
 for token in dataset.all_word_tokens():
     if not (vectorizer.contains_token(token)):
         missing_tokens.append(token)
 print ('batch unique tokens: {}'.format(len(dataset.all_word_tokens())))
 print ('missing:             {}'.format(len(missing_tokens)))
-print (missing_tokens)
-exit()
+missing_index = {}
+for idx, token in enumerate(missing_tokens):
+    missing_index[token] = idx
+
+with tf.variable_scope("trainable_vectors", reuse=False):  
+    trainable_tensor = tf.get_variable(
+        "trainable_wordvectors",
+        initializer=tf.random_normal(shape=[len(missing_tokens), 64], mean=0.0, stddev=0.05, dtype=tf.float32))
+with tf.variable_scope("trainable_l1", reuse=False):  
+    trainable_layer1 = tf.layers.dense(inputs=trainable_tensor, units=128, activation=tf.nn.crelu)
+with tf.variable_scope("trainable_l2", reuse=False):  
+    trainable_output = tf.layers.dense(inputs=trainable_layer1, units=300, activation=tf.nn.tanh)
 
 feature_ph = tf.placeholder(dtype=tf.float32, shape=[None, feature_length, 300], name="feature_placeholder")
+indices_ph = tf.placeholder(dtype=tf.int32, shape=[None, feature_length, 1], name="indices_placeholder")
 wordvec_ph = tf.placeholder(dtype=tf.float32, shape=[None, 300], name="word_vector_placeholder")
 random_word_ph = tf.placeholder(dtype=tf.float32, shape=[None, random_dict_words, 300], name="random_word_placeholder")
 dummy = np.random.uniform(low=0.0, high=1.0, size=[2, feature_length, 300])
@@ -100,8 +115,15 @@ total_words = batch_size * random_dict_words
 word_dictionary = tf.constant(negative_samples, dtype=tf.float32)
 random_words = tf.tile(word_dictionary, [total_words//len(negative_samples)+1, 1])
 
+def trainable_model(vectors, indices):
+    indices = tf.reshape(indices, [-1])
+    index_values = tf.gather(trainable_output, indices, axis=0)
+    index_values = tf.reshape(index_values, [-1, feature_length, 300])
+    return vectors + index_values
+
 net_out = rnn_net(feature_ph, batch_size, feature_length - 1, [128, 96, 128])
-test_out = rnn_net(feature_ph, test_batch_size, feature_length - 1, [128, 96, 128], reuse=True)
+trainable_net_out = rnn_net(trainable_model(feature_ph, indices_ph), batch_size, feature_length - 1, [128, 96, 128], reuse=True)
+test_out = rnn_net(trainable_model(feature_ph, indices_ph), test_batch_size, feature_length - 1, [128, 96, 128], reuse=True)
 dict_out = rnn_net(tf.tile(feature_ph, [len(negative_samples),1,1]), len(negative_samples), feature_length - 1, [128, 96, 128], reuse=True)
 def random_vectors(stddev=0.15):
     return tf.random_normal([batch_size, 300], 0.0, stddev=stddev, dtype=tf.float32)
@@ -120,7 +142,7 @@ def random_probs(model, ground_truth):
     #return tf.reduce_mean(tf.reduce_max(tf.concat(prob_rand, axis=1),axis=1))
     max_val =  tf.reduce_mean(tf.reduce_max(tf.concat(prob_rand, axis=1),axis=1))
     min_val =  tf.reduce_mean(tf.reduce_min(tf.concat(prob_rand, axis=1),axis=1))
-    return tf.reduce_mean(tf.concat(prob_rand, axis=1) ), max_val, min_val
+    return tf.reduce_mean(tf.concat(prob_rand, axis=1) ), max_val, min_val  
 
 def loss(model, ground_truth):
     '''return tf.reduce_sum(tf.norm(model - ground_truth[:,feature_length - 1,:], axis=1)) #euclidean distance to gt'''
@@ -132,13 +154,15 @@ def loss(model, ground_truth):
     prob_rand_mean = tf.reduce_mean(prob_rand)
     return prob_rand_mean - prob_gt_mean + avg_rand + max_rand
 
-training = tf.train.AdamOptimizer(6e-5).minimize(loss(net_out, feature_ph))
+training = tf.train.AdamOptimizer(6e-5).minimize(loss(trainable_net_out, feature_ph), var_list = [trainable_tensor])
 
 print('starting tf session..')
 saver = tf.train.Saver()
+loader = tf.train.Saver(var_list= [v for v in tf.global_variables() if not "trainable" in v.name])
 sess = tf.Session()
 sess.run(tf.global_variables_initializer())
-saver.restore(sess, 'models/'+model_name)
+loader.restore(sess, 'models/'+model_name)
+#saver.restore(sess, 'models/'+model_name)
 
 iterationcount = 0
 
@@ -146,30 +170,34 @@ iterationcount = 0
 print('building test dictionary..')
 testwords = ["i", "you", "the", "this", "is"]
 for i in range(len(testwords)):
-    testwords[i] = (vectorizer.vectorize_tokens([testwords[i]])[0],  testwords[i])
+    testwords[i] = (vectorizer.get_vector(testwords[i]),  testwords[i])
 for i in range(test_batch_size - len(testwords)):
-    idx = random.randint(0, 10000)
+    idx = random.randint(0, 30000)
     testwords.append(vectorizer.tuple_at_index(idx))
 
 if (training_mode):
     print('starting training..')
     while(True):    
-        for j in range(100):
+        for j in range(100):           
             current_batch = dataset.next_batch()
-            sess.run(training, feed_dict={feature_ph: current_batch})
-        print(sess.run(loss(net_out, feature_ph), feed_dict={feature_ph: current_batch}))    
+            indices = np.array([tup[1] for tup  in current_batch])  
+            features = np.array([tup[0] for tup  in current_batch])                  
+            sess.run(training, feed_dict={feature_ph: features, indices_ph: indices})
+        print(sess.run(loss(trainable_net_out, feature_ph), feed_dict={feature_ph: features, indices_ph: indices}))    
         #print ground truth
         for i in range(feature_length):
-            print(vectorizer.find_nearest(current_batch[0,i]))  
+            print('{:>12} ({})'.format(vectorizer.find_nearest(features[0,i]), indices[0,i]))  
              
         ground_truth__prob = sess.run(prob_transform_nn(test_out, wordvec_ph, reuse= True),
-                        feed_dict={feature_ph: np.tile(current_batch[None, 0, :, :], (test_batch_size,1,1) ),
-                                   wordvec_ph: np.tile(current_batch[None, 0, feature_length - 1, :], (test_batch_size,1))})[0]  
+                        feed_dict={feature_ph: np.tile(features[None, 0, :, :], (test_batch_size,1,1) ),
+                                   indices_ph: np.tile(indices[None, 0, :, :], (test_batch_size,1,1) ),
+                                   wordvec_ph: np.tile(features[None, 0, feature_length - 1, :], (test_batch_size,1))})[0]  
         print(' = {}'.format(ground_truth__prob))
         col_width = max(len(val[1]) for val in testwords)
         test_batch = np.array([val[0] for val in testwords])        
         prob = sess.run(prob_transform_nn(test_out, wordvec_ph, reuse= True),
-                        feed_dict={feature_ph: np.tile(current_batch[None, 0, :, :], (test_batch_size,1,1) ),
+                        feed_dict={feature_ph: np.tile(features[None, 0, :, :], (test_batch_size,1,1) ),
+                                   indices_ph: np.tile(indices[None, 0, :, :], (test_batch_size,1,1) ),
                                    wordvec_ph: test_batch})    
         sorted_words = []
         for i in range(len(testwords)):
@@ -185,12 +213,12 @@ if (training_mode):
             saver.save(sess, 'models/'+model_name)
             print('...done.')
             
-print('starting stext generation...')
+print('starting text generation...')
 text_history = np.zeros((feature_length, 300))
 words = [elem for elem in vectorizer.all_tuples()]
 while(True):
     word_probs = sess.run(prob_transform_nn(dict_out, word_dictionary, reuse=True), feed_dict={feature_ph: [text_history]})[:,0]
-    word_probs = word_probs**1.5
+    word_probs = word_probs**3
     word_probs = word_probs/np.sum(word_probs)
     next_word_idx = np.random.choice(range(len(words)), p=word_probs)
     next_word_vec, next_word = words[next_word_idx]

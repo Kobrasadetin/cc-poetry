@@ -51,7 +51,7 @@ print('3rd eig mean sqr dev   {}'.format(sqrs1))
 words=[]
 for key, value in npdict_w2v.items():
     val = np.matmul(value, pca_results.Wt[0])
-    if abs(val) > 2 or abs(val) < 0.05:
+    if abs(val) > 1.4 or abs(val) < 0.01:
         words += [(key, np.matmul(value, pca_results.Wt[0]))]
 
 words.sort(key=lambda tup: tup[1])
@@ -64,7 +64,7 @@ for key, value in npdict_w2v.items():
         words += [(key, np.matmul(value, pca_results.Wt[1]))]
 
 words.sort(key=lambda tup: tup[1])
-print (words)
+#print (words)
     
 
 

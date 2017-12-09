@@ -20,7 +20,9 @@ class Vectorizer:
         
         self.dict_tuples = [(value, token) for _, token, value in self.valuessorted]  
         self.vectors = [value for _, _, value in self.valuessorted]       
-        self.vectors = np.array(self.vectors) 
+        self.vectors = np.array(self.vectors)
+        
+        self.miss_dictionary = {None:None}
                   
         
     def vectorize_tokens(self, tokens):
@@ -28,14 +30,30 @@ class Vectorizer:
         '''vectorizes a list of tokens
         returns a numpy array of size [len(tokens), size_of_vec]'''
         vec_array = np.empty([len(tokens), self.size_of_vec], dtype=np.float32)
+        miss_indexes = np.empty([len(tokens), 1], dtype=np.int32)
         for i in range(len(tokens)):
-            vec = np.zeros(self.size_of_vec)
+            miss_index = 0
+            vec = np.zeros(shape=self.size_of_vec)
             try:
                 vec = self.npdict_w2v[tokens[i]]
-            except KeyError:
-                pass
+            except KeyError: 
+                try:
+                    miss_index = self.miss_dictionary[tokens[i]]
+                except KeyError:
+                    next_index = len(self.miss_dictionary)
+                    self.miss_dictionary[tokens[i]] = next_index
+                    miss_index = next_index
+            miss_indexes[i] = miss_index
             vec_array[i] = vec
-        return vec_array
+        return vec_array, miss_indexes
+      
+    def get_vector(self, token):
+        vec = np.zeros(shape=self.size_of_vec)
+        try:
+            vec = self.npdict_w2v[token]
+        except KeyError: 
+            pass
+        return vec
       
     def contains_token(self, token):
         '''returns true if token has a vector representation'''
@@ -72,7 +90,7 @@ class Vectorizer:
             if dist < best:
                 best = dist
                 closest = key
-        return closest
+        return closest     
 
 '''running as main starts a vector finder loop'''
 if __name__=='__main__':

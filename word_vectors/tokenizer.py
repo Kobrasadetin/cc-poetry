@@ -8,9 +8,9 @@ import nltk
 import re
 import string
 
-substitutes = [('―','-'),('٭',''),('ﬁ','fi'),('`', "'"),('“', '"'),('”','"'),('‘',"'")]
-newline_symbol = ' <newline> '
-internet_address_symbol = '<website>'
+newline_symbol = ' -newline- '
+internet_address_symbol = ' -website- '
+substitutes = [('//', newline_symbol), ('―','-'),('٭',''),('ﬁ','fi'),('`', "'"),('“', '"'),('”','"'),('‘',"'")]
 remove_if_found_punctuation = re.escape("*^{|}~¡ãã¨î¾µï\¬¹±+§äöå")
 # removed_punctuation = "#$%&()*+-:;<=>@[\]^_{|}~"
 # allowed_punctuation = "!\".,?'/"

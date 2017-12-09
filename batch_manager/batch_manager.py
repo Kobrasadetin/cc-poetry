@@ -32,48 +32,48 @@ class BatchManager:
         self.vectorizer = vectorizer_instance
         self.context_arrays=[]
         self.sequences=[]
+        self.sequence_indexes=[]
         self.batch_size = batch_size
         self.sequence_length = sequence_length
         self.sequence_counter = 0
         self.all_tokens = set()
         
-    def read_csv(self, filename, column, limit_count = 8000):      
+    def read_csv(self, filename, column, limits = slice(0, 10000)):      
         log.info('opening csv {}'.format(filename))     
         contents = read_csv(filename, column)
         counter = 0   
         counts_all = 0
         counts_zero = 0     
-        for context in contents:         
+        for context in contents[limits]:         
             tokenized = tokenizer.tokenize(context)
             if tokenized != None:
                 for token in tokenized:
                     self.all_tokens.add(token)
-                vectorized = self.vectorizer.vectorize_tokens(tokenized)            
+                vectorized, miss_indexes = self.vectorizer.vectorize_tokens(tokenized)            
                 '''vectorizer returns numpy arrays of varying length'''
                 self.context_arrays.append(vectorized)
                 zerocount = 0            
                 for i in range(np.shape(vectorized)[0] - self.sequence_length + 1):
                     '''only include samples where the last word is not equal to a zero vector'''
-                    if np.any(vectorized[i+self.sequence_length - 1]):
-                        self.sequences += [vectorized[i:i+self.sequence_length]]
+                    if miss_indexes[i+self.sequence_length - 1] == 0:
+                        self.sequences += [(vectorized[i:i+self.sequence_length], miss_indexes[i:i+self.sequence_length])] 
                         counts_all += 1
                     else:
                         zerocount+=1    
                 counts_zero += 1 if zerocount>0 else 0
                 counter += 1
                 if (counter % 1000 == 0): print('{:06d}/{:06d},\t {} training vectors'.format(counter, len(contents), counts_all), end='\r')
-                if (limit_count>0 and counter >limit_count): break
         '''shuffle sequences'''  
         print("done.")      
         random.shuffle(self.sequences)               
     
     def all_word_tokens(self):
         '''returns a set of all the tokens in the managed batches'''
-        return self.all_tokens      
+        return self.all_tokens         
                 
     def next_batch(self):
         '''returns the next batch of random sequences'''
-        new_batch = np.array(self.sequences[self.sequence_counter : self.sequence_counter + self.batch_size]) 
+        new_batch = self.sequences[self.sequence_counter : self.sequence_counter + self.batch_size]
         self.sequence_counter += self.batch_size
         
         '''reshuffle sequences when all have been processed'''
@@ -82,5 +82,4 @@ class BatchManager:
             self.sequence_counter = 0
              
         return new_batch
-    
     

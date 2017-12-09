@@ -1,3 +1,4 @@
+# -*- coding: utf8 -*-
 '''
 Created on 5.12.2017
 
@@ -9,6 +10,7 @@ This is a cleaned and untested version of my original code, so there could be bu
 import nltk
 import numpy as np
 from gensim.models import Word2Vec
+from collections import Counter
 import os
 
 def find_vectors_for_tokens(tokens, model_filename= os.path.join("K:","Ohjelmointi", "googleModel")):
@@ -20,6 +22,7 @@ def find_vectors_for_tokens(tokens, model_filename= os.path.join("K:","Ohjelmoin
     missing = []
     counter=0
     for w in tokens:
+        counter+=1
         try:
             w2v_vector = model[w]
             npdict_w2v[w] = w2v_vector
@@ -31,9 +34,16 @@ def find_vectors_for_tokens(tokens, model_filename= os.path.join("K:","Ohjelmoin
     return npdict_w2v, missing
 
 if __name__ == '__main__':
+    w = np.load('missing_tokens.npy')
+    print (len(w))
+    a =  np.load('npdict_w2v.npy').item()
+    print(len(a))
+    exit()
     model_file = os.path.join("K:","Ohjelmointi", "googleModel")
     with open('20k.txt', 'r', encoding='utf8') as f:
         words = nltk.word_tokenize(f.read())
+    words.extend(np.load('missing_tokens.npy'))
+    print( len(words))
     npdict_w2v, missing = find_vectors_for_tokens(words)
     np.save('npdict_w2v.npy', npdict_w2v)
     np.save('missing.npy', missing)
