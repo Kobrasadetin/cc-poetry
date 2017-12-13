@@ -1,3 +1,7 @@
+## Net structure
+
+![Model](model.png?raw=true "model")
+
 ## Output during training
 
 During training, the net will output examples of probabilities associated with some random word vectors.
